@@ -11,13 +11,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 public class ShopsSource {
-    public List<String> get() {
+
+    private final List<String> shops;
+
+    public ShopsSource() {
         try {
             String text = Files.readString(Paths.get("./shops.txt"), StandardCharsets.UTF_8);
-            return !text.isBlank() ? Arrays.stream(text.split("[,\n]")).map(String::trim).collect(Collectors.toList()) : Collections.emptyList();
+            shops = !text.isBlank() ? Arrays.stream(text.split("[,\n]")).map(String::trim).collect(Collectors.toList()) : Collections.emptyList();
         } catch (IOException e) {
-            e.printStackTrace(System.err);
-            return Collections.emptyList();
+            throw new IllegalStateException(e);
         }
+    }
+
+    public List<String> get() {
+        return shops;
     }
 }

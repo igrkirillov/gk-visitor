@@ -11,6 +11,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import ru.x5.gk.visitor.ResultData.ResultDataRow;
 
 public class ExcelExporter {
 
@@ -64,18 +65,19 @@ public class ExcelExporter {
         font.setFontHeight(12);
         style.setFont(font);
                  
-        for (Object[] rowData : resultData.getRows()) {
+        for (ResultDataRow dataRow : resultData.getRows()) {
             Row row = sheet.createRow(rowCount++);
             int columnCount = 0;
-            for (Object colValue : rowData) {
-                createCell(row, columnCount++, colValue, style);
+            for (Object colValue : dataRow.getColValues()) {
+                if (colValue != null) {
+                    createCell(row, columnCount, colValue, style);
+                }
+                ++columnCount;
             }
-
         }
     }
      
     public void exportTo(File file) {
-        resultData.flush();
         try {
             writeHeaderLine();
             writeDataLines();

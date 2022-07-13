@@ -2,53 +2,61 @@ package ru.x5.gk.visitor;
 
 import java.util.ArrayList;
 import java.util.List;
-import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 @RequiredArgsConstructor
 public class ResultData {
 
-    @Getter
     private final String[] headers;
-    @Getter
-    private final List<Object[]> rows = new ArrayList<>();
+    private final List<ResultDataRow> rows = new ArrayList<>();
 
-    private Object[] currentRow;
-
-    public void newRow() {
-        if (currentRow != null) {
-            rows.add(currentRow);
-        }
-        currentRow = new Object[headers.length];
+    public synchronized ResultDataRow newRow() {
+        ResultDataRow row = new ResultDataRow();
+        rows.add(row);
+        return row;
     }
 
-    public void addColValue(String header, Object value) {
-        int index = 0;
-        for (String h : headers) {
-            if (h.equals(header)) {
-                break;
+    public String[] getHeaders() {
+        return headers;
+    }
+
+    public synchronized List<ResultDataRow> getRows() {
+        return rows;
+    }
+
+    public class ResultDataRow {
+
+        public ResultDataRow() {
+            colValues = new Object[headers.length];
+        }
+
+        private Object[] colValues;
+
+        public void addColValue(String header, Object value) {
+            int index = -1;
+            for (int i = 0; i < headers.length; ++i) {
+                if (headers[i].equals(header)) {
+                    index = i;
+                    break;
+                }
             }
-            ++index;
+            if (index != -1) {
+                colValues[index] = value;
+            } else {
+                throw new IllegalArgumentException(header);
+            }
         }
-        currentRow[index] = value;
-    }
 
-    public void flush() {
-        if (currentRow != null) {
-            rows.add(currentRow);
-        }
-        currentRow = null;
-    }
-
-    public String getCurrentRowInStringFormat() {
-        if (currentRow != null) {
+        public String toDebugString() {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < headers.length; ++i) {
-                sb.append(headers[i] + "=" + currentRow[i] + "; ");
+                sb.append(headers[i] + "=" + colValues[i] + "; ");
             }
             return sb.toString();
-        } else {
-            return "nothing";
+        }
+
+        public Object[] getColValues() {
+            return colValues;
         }
     }
 }

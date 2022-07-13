@@ -6,20 +6,18 @@ import ru.x5.gk.visitor.ssh.SshVisitor;
 
 public class CommandLine {
     public static void main(String[] args) {
-        System.out.println("1 - sql visitor");
-        System.out.println("2 - ssh visitor");
-        System.out.println("3 - jms visitor");
-        System.out.println("Выберите номер команды:");
-        final int input = Integer.parseInt(System.console().readLine());
-        switch (input) {
-            case 1 :
+        switch (args[0]) {
+            case "sql" :
                 SqlVisitor.main(args);
-                return;
-            case 2:
+                break;
+            case "ssh":
                 SshVisitor.main(args);
-                return;
-            case 3:
+                break;
+            case "jms":
                 JmsVisitor.main(args);
+                break;
+            default:
+                throw new IllegalStateException("Please, input valid program arg");
         }
     }
 }

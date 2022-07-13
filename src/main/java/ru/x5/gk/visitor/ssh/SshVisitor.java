@@ -12,11 +12,17 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.apache.commons.io.IOUtils;
 import ru.x5.gk.visitor.ExcelExporter;
 import ru.x5.gk.visitor.GkHostDeterminer;
 import ru.x5.gk.visitor.GkPasswordDeterminer;
 import ru.x5.gk.visitor.ResultData;
+import ru.x5.gk.visitor.ResultData.ResultDataRow;
 import ru.x5.gk.visitor.ResultLogger;
 import ru.x5.gk.visitor.ShopsSource;
 
@@ -36,21 +42,34 @@ public class SshVisitor {
         SshPasswordSource passwordSource = new SshPasswordSource();
         GkPasswordDeterminer passwordDeterminer = new GkPasswordDeterminer(hostDeterminer, loginSource, passwordSource);
         ResultData resultData = new ResultData(HEADERS);
+
+        ExecutorService executorService = Executors.newFixedThreadPool(50);
+        List<Callable<Object>> tasks = new ArrayList<>(shopsSource.get().size());
         for (String shop : shopsSource.get()) {
-            try {
-                String sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), loginSource.get(),
-                        passwordDeterminer.determinePassword(shop));
-                resultData.newRow();
-                resultData.addColValue(HEADER_SHOP, shop);
-                resultData.addColValue(HEADER_LOG, sshOutput);
-                logger.log(resultData.getCurrentRowInStringFormat());
-            } catch (Exception e) {
-                e.printStackTrace(System.err);
-            }
+            tasks.add(Executors.callable(() -> runTask(shop, ssh, hostDeterminer, loginSource.get(), passwordDeterminer, resultData)));
         }
+        try {
+            executorService.invokeAll(tasks);
+        } catch (InterruptedException e) {
+            e.printStackTrace(System.err);
+        }
+
+        executorService.shutdown();
+
         ExcelExporter excelExporter = new ExcelExporter(resultData);
-        String resultFilePath = "./result_" + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME).replace(".", "_") + ".xlsx";
+        String resultFilePath = "./result_" + LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                .replaceAll("[\\.:-]", "_") + ".xlsx";
         excelExporter.exportTo(new File(resultFilePath));
+    }
+
+    private static void runTask(String shop, String ssh, GkHostDeterminer hostDeterminer, String login,
+                                GkPasswordDeterminer passwordDeterminer, ResultData resultData) {
+        String sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), login,
+                passwordDeterminer.determinePassword(shop));
+        ResultDataRow dataRow = resultData.newRow();
+        dataRow.addColValue(HEADER_SHOP, shop);
+        dataRow.addColValue(HEADER_LOG, sshOutput);
+        logger.log(dataRow.toDebugString());
     }
 
     private static String getSsh() {
