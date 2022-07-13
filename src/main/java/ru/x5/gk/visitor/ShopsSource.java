@@ -8,7 +8,10 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static java.util.function.Predicate.not;
 
 public class ShopsSource {
 
@@ -17,7 +20,7 @@ public class ShopsSource {
     public ShopsSource() {
         try {
             String text = Files.readString(Paths.get("./shops.txt"), StandardCharsets.UTF_8);
-            shops = !text.isBlank() ? Arrays.stream(text.split("[,\n]")).map(String::trim).collect(Collectors.toList()) : Collections.emptyList();
+            shops = !text.isBlank() ? Arrays.stream(text.split("[,\n]")).filter(not(String::isBlank)).collect(Collectors.toList()) : Collections.emptyList();
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
