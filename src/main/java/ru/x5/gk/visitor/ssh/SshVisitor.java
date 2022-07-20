@@ -18,6 +18,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.commons.io.IOUtils;
+import org.springframework.util.CollectionUtils;
 import ru.x5.gk.visitor.ExcelExporter;
 import ru.x5.gk.visitor.GkHostDeterminer;
 import ru.x5.gk.visitor.GkPasswordDeterminer;
@@ -25,6 +26,8 @@ import ru.x5.gk.visitor.ResultData;
 import ru.x5.gk.visitor.ResultData.ResultDataRow;
 import ru.x5.gk.visitor.ResultLogger;
 import ru.x5.gk.visitor.ShopsSource;
+
+import static org.springframework.util.CollectionUtils.isEmpty;
 
 public class SshVisitor {
 
@@ -43,7 +46,7 @@ public class SshVisitor {
         GkPasswordDeterminer passwordDeterminer = new GkPasswordDeterminer(hostDeterminer, loginSource, passwordSource);
         ResultData resultData = new ResultData(HEADERS);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(50);
+        ExecutorService executorService = Executors.newFixedThreadPool(100);
         List<Callable<Object>> tasks = new ArrayList<>(shopsSource.get().size());
         for (String shop : shopsSource.get()) {
             tasks.add(Executors.callable(() -> runTask(shop, ssh, hostDeterminer, loginSource.get(), passwordDeterminer, resultData)));
@@ -64,12 +67,21 @@ public class SshVisitor {
 
     private static void runTask(String shop, String ssh, GkHostDeterminer hostDeterminer, String login,
                                 GkPasswordDeterminer passwordDeterminer, ResultData resultData) {
-        String sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), login,
+        List<String> sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), login,
                 passwordDeterminer.determinePassword(shop));
-        ResultDataRow dataRow = resultData.newRow();
-        dataRow.addColValue(HEADER_SHOP, shop);
-        dataRow.addColValue(HEADER_LOG, sshOutput);
-        logger.log(dataRow.toDebugString());
+        if (!isEmpty(sshOutput)) {
+            for (String outputRow : sshOutput) {
+                ResultDataRow dataRow = resultData.newRow();
+                dataRow.addColValue(HEADER_SHOP, shop);
+                dataRow.addColValue(HEADER_LOG, outputRow);
+                logger.log(dataRow.toDebugString());
+            }
+        } else {
+            ResultDataRow dataRow = resultData.newRow();
+            dataRow.addColValue(HEADER_SHOP, shop);
+            dataRow.addColValue(HEADER_LOG, "");
+            logger.log(dataRow.toDebugString());
+        }
     }
 
     private static String getSsh() {
@@ -81,7 +93,7 @@ public class SshVisitor {
         }
     }
 
-    private static String runCommand(String command, String host, String login, String password) {
+    private static List<String> runCommand(String command, String host, String login, String password) {
         Session session = null;
         ChannelExec channel = null;
         try {
@@ -94,12 +106,11 @@ public class SshVisitor {
             InputStream output = channel.getInputStream();
             channel.connect();
 
-            return IOUtils.toString(output, StandardCharsets.UTF_8);
-
+            return IOUtils.readLines(output, StandardCharsets.UTF_8);
         } catch (JSchException | IOException e) {
             closeConnection(channel, session);
             e.printStackTrace(System.err);
-            return "";
+            return List.of("");
         } finally {
             try {
                 closeConnection(channel, session);
