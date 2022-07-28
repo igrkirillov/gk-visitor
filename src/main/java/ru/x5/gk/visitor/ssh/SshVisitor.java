@@ -18,10 +18,8 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import org.apache.commons.io.IOUtils;
-import org.springframework.util.CollectionUtils;
 import ru.x5.gk.visitor.ExcelExporter;
 import ru.x5.gk.visitor.GkHostDeterminer;
-import ru.x5.gk.visitor.GkPasswordDeterminer;
 import ru.x5.gk.visitor.ResultData;
 import ru.x5.gk.visitor.ResultData.ResultDataRow;
 import ru.x5.gk.visitor.ResultLogger;
@@ -42,8 +40,8 @@ public class SshVisitor {
         ShopsSource shopsSource = new ShopsSource();
         GkHostDeterminer hostDeterminer = new GkHostDeterminer();
         SshLoginSource loginSource = new SshLoginSource();
-        SshPasswordSource passwordSource = new SshPasswordSource();
-        GkPasswordDeterminer passwordDeterminer = new GkPasswordDeterminer(hostDeterminer, loginSource, passwordSource);
+        SshPasswordProviderUrlSource passwordProviderUrlSource = new SshPasswordProviderUrlSource();
+        GkPasswordDeterminer passwordDeterminer = new GkPasswordDeterminer(hostDeterminer, loginSource, passwordProviderUrlSource);
         ResultData resultData = new ResultData(HEADERS);
 
         ExecutorService executorService = Executors.newFixedThreadPool(100);
@@ -98,7 +96,7 @@ public class SshVisitor {
         ChannelExec channel = null;
         try {
             session = setupSshSession(host, login, password);
-            session.connect();
+            session.connect(3000);
 
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
