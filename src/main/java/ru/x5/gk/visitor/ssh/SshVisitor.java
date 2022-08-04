@@ -96,7 +96,7 @@ public class SshVisitor {
         ChannelExec channel = null;
         try {
             session = setupSshSession(host, login, password);
-            session.connect(3000);
+            session.connect(10000);
 
             channel = (ChannelExec) session.openChannel("exec");
             channel.setCommand(command);
