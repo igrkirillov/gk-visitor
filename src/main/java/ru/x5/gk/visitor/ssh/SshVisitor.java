@@ -40,14 +40,12 @@ public class SshVisitor {
         ShopsSource shopsSource = new ShopsSource();
         GkHostDeterminer hostDeterminer = new GkHostDeterminer();
         SshLoginSource loginSource = new SshLoginSource();
-        SshPasswordProviderUrlSource passwordProviderUrlSource = new SshPasswordProviderUrlSource();
-        GkPasswordDeterminer passwordDeterminer = new GkPasswordDeterminer(hostDeterminer, loginSource, passwordProviderUrlSource);
         ResultData resultData = new ResultData(HEADERS);
 
         ExecutorService executorService = Executors.newFixedThreadPool(100);
         List<Callable<Object>> tasks = new ArrayList<>(shopsSource.get().size());
         for (String shop : shopsSource.get()) {
-            tasks.add(Executors.callable(() -> runTask(shop, ssh, hostDeterminer, loginSource.get(), passwordDeterminer, resultData)));
+            tasks.add(Executors.callable(() -> runTask(shop, ssh, hostDeterminer, loginSource.get(), resultData)));
         }
         try {
             executorService.invokeAll(tasks);
@@ -63,10 +61,8 @@ public class SshVisitor {
         excelExporter.exportTo(new File(resultFilePath));
     }
 
-    private static void runTask(String shop, String ssh, GkHostDeterminer hostDeterminer, String login,
-                                GkPasswordDeterminer passwordDeterminer, ResultData resultData) {
-        List<String> sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), login,
-                passwordDeterminer.determinePassword(shop));
+    private static void runTask(String shop, String ssh, GkHostDeterminer hostDeterminer, String login, ResultData resultData) {
+        List<String> sshOutput = runCommand(ssh, hostDeterminer.determineHost(shop), login);
         if (!isEmpty(sshOutput)) {
             for (String outputRow : sshOutput) {
                 ResultDataRow dataRow = resultData.newRow();
@@ -91,11 +87,11 @@ public class SshVisitor {
         }
     }
 
-    private static List<String> runCommand(String command, String host, String login, String password) {
+    private static List<String> runCommand(String command, String host, String login) {
         Session session = null;
         ChannelExec channel = null;
         try {
-            session = setupSshSession(host, login, password);
+            session = setupSshSession(host, login);
             session.connect(10000);
 
             channel = (ChannelExec) session.openChannel("exec");
@@ -106,8 +102,8 @@ public class SshVisitor {
 
             return IOUtils.readLines(output, StandardCharsets.UTF_8);
         } catch (JSchException | IOException e) {
-            closeConnection(channel, session);
             e.printStackTrace(System.err);
+            closeConnection(channel, session);
             return List.of("");
         } finally {
             try {
@@ -118,12 +114,23 @@ public class SshVisitor {
         }
     }
 
-    private static Session setupSshSession(String host, String login, String password) throws JSchException {
-        Session session = new JSch().getSession(login, host);
-        session.setConfig("PreferredAuthentications", "publickey,keyboard-interactive,password");
+    private static Session setupSshSession(String host, String login) throws JSchException {
+        JSch jSch = new JSch();
+        String rsaFile = getRsaFilePath();
+        jSch.addIdentity(rsaFile);
+        Session session = jSch.getSession(login, host);
         session.setConfig("StrictHostKeyChecking", "no"); // disable check for RSA key
-        session.setPassword(password);
+        session.setConfig("PreferredAuthentications", "publickey");
         return session;
+    }
+
+    private static String getRsaFilePath() {
+        try {
+            return new String(Files.readAllBytes(Paths.get("./rsa.txt"))).trim();
+        } catch (IOException e) {
+            e.printStackTrace(System.err);
+            return "";
+        }
     }
 
     private static void closeConnection(ChannelExec channel, Session session) {

@@ -1,14 +1,20 @@
 package ru.x5.gk.visitor.jms;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 import javax.management.MBeanServerConnection;
 import javax.management.MBeanServerInvocationHandler;
 import javax.management.MalformedObjectNameException;
@@ -23,6 +29,8 @@ import ru.x5.gk.visitor.ResultData.ResultDataRow;
 import ru.x5.gk.visitor.ResultLogger;
 import ru.x5.gk.visitor.ShopsSource;
 
+import static java.util.function.Predicate.not;
+
 public class JmsVisitor {
 
     private static final String HEADER_SHOP = "Shop";
@@ -33,12 +41,6 @@ public class JmsVisitor {
     private static final String HEADER_CONSUMER_COUNT = "ConsumerCount";
     private static final String[] HEADERS =
             {HEADER_SHOP, HEADER_QUEUE, HEADER_QUEUE_SIZE, HEADER_DEQUEUE_COUNT, HEADER_IN_FLIGHT_COUNT, HEADER_CONSUMER_COUNT};
-
-    private static final String QUEUE_LOCAL_INVENTORY_TASK = "mrm.local.inventory.task.queue";
-    private static final String QUEUE_INCOMING_SERIALIZING = "mrm.booked.incoming.serializing.queue";
-    private static final String QUEUE_INCOMING_SENDING = "mrm.booked.incoming.sending.queue";
-    private static final String[] QUEUES =
-            new String[] {QUEUE_LOCAL_INVENTORY_TASK, QUEUE_INCOMING_SERIALIZING, QUEUE_INCOMING_SENDING};
 
     private static final ResultLogger logger = new ResultLogger();
 
@@ -75,9 +77,19 @@ public class JmsVisitor {
             logger.log(dataRow.toDebugString());
             return;
         }
-        for (String queue : QUEUES) {
+        for (String queue : getQueues()) {
             QueueHealthInformer queueHealthInformer = new QueueHealthInformer(shop, connection, queue);
             queueHealthInformer.addInfoToResultData(resultData);
+        }
+    }
+
+    private static List<String> getQueues() {
+        try {
+            String text = Files.readString(Paths.get("./queues.txt"), StandardCharsets.UTF_8);
+            return !text.isBlank() ? Arrays.stream(text.split("[,\n\\s]")).filter(not(String::isBlank)).collect(
+                    Collectors.toList()) : Collections.emptyList();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
         }
     }
 

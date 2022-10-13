@@ -2,7 +2,7 @@ package ru.x5.gk.visitor.ssh;
 
 public class SshLoginSource {
 
-    private final String login = "mgmgkappl";
+    private final String login = "line3";
 
     public String get() {
         String local = System.getProperty("local");
