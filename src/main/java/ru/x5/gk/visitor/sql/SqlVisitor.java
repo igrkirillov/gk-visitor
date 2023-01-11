@@ -10,7 +10,6 @@ import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
@@ -22,8 +21,6 @@ import ru.x5.gk.visitor.ResultData.ResultDataRow;
 import ru.x5.gk.visitor.ResultLogger;
 import ru.x5.gk.visitor.ShopsSource;
 
-import static java.util.Arrays.asList;
-
 public class SqlVisitor {
 
     private static final ResultLogger logger = new ResultLogger();
@@ -34,7 +31,7 @@ public class SqlVisitor {
         ShopsSource shopsSource = new ShopsSource();
         GkHostDeterminer hostDeterminer = new GkHostDeterminer();
         SqlSource sqlSource = new SqlSource();
-        ResultData resultData = new ResultData(defineHeaders(sqlSource));
+        ResultData resultData = new ResultData(defineHeaders(sqlSource, shopsSource, hostDeterminer));
 
         ExecutorService executorService = Executors.newFixedThreadPool(50);
         List<Callable<Object>> tasks = new ArrayList<>(shopsSource.get().size());
@@ -56,13 +53,26 @@ public class SqlVisitor {
         excelExporter.exportTo(new File(resultFilePath));
     }
 
-    private static String[] defineHeaders(SqlSource sqlSource) {
+    private static String[] defineHeaders(SqlSource sqlSource, ShopsSource shopsSource, GkHostDeterminer hostDeterminer) {
         String sql = sqlSource.getSql().toLowerCase();
-        String columnsClause = sql.substring(sql.indexOf("select") + "select".length(), sql.indexOf("from"));
-        String[] sqlCols = Arrays.stream(columnsClause.split(",")).map(String::trim).toArray(String[]::new);
-        List<String> result = new ArrayList<>(sqlCols.length + 1);
+        String shop = shopsSource.get().get(0);
+        List<String> result = new ArrayList<>();
         result.add(HEADER_SHOP);
-        result.addAll(asList(sqlCols));
+        try (Connection con = DriverManager.getConnection(
+                "jdbc:postgresql://" + hostDeterminer.determineHost(shop) +
+                        ":5432/postgres?currentSchema=gkretail", "gkretail", "gkretail");
+                Statement statement = con.createStatement();
+                ResultSet rs = statement.executeQuery(sql)) {
+            logger.log("Запрос для получения столбцов выполнен " + shop + " columns " + rs.getMetaData().getColumnCount());
+            ResultSetMetaData md = rs.getMetaData();
+            // индекс в rs col начинается от 1
+            for (int col = 1; col <= md.getColumnCount(); ++col) {
+                result.add(md.getColumnName(col));
+            }
+            logger.log(String.join("", result));
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
         return result.toArray(new String[0]);
     }
 
