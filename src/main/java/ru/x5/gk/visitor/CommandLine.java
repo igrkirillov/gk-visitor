@@ -1,6 +1,7 @@
 package ru.x5.gk.visitor;
 
 import ru.x5.gk.visitor.jms.JmsVisitor;
+import ru.x5.gk.visitor.photo.PhotoVisitor;
 import ru.x5.gk.visitor.sql.SqlVisitor;
 import ru.x5.gk.visitor.ssh.SshVisitor;
 
@@ -15,6 +16,9 @@ public class CommandLine {
                 break;
             case "jms":
                 JmsVisitor.main(args);
+                break;
+            case "photo":
+                PhotoVisitor.main(args);
                 break;
             default:
                 throw new IllegalStateException("Please, input valid program arg");
